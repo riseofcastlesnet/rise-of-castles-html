@@ -405,93 +405,92 @@
     </div>
 
     <script>
+       // Configuração atualizada para integração com Wix
+        const WIX_API_BASE = 'https://www.riseofcastles.net/_functions';
         let allResearches = [];
         let currentUserId = null;
-        let loadingAttempted = false;
 
-        // Configuração da comunicação com o Wix
+        // Comunicação com o Wix
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'USER_INFO') {
                 currentUserId = event.data.userId;
                 console.log('UserID recebido:', currentUserId);
-                
-                if (!currentUserId) {
-                    document.getElementById('loginPrompt').style.display = 'block';
-                }
-                
-                if (!loadingAttempted) {
-                    loadingAttempted = true;
-                    loadResearches();
-                }
+                loadResearches();
             }
         });
 
-        // Função para carregar pesquisas
-async function loadResearches() {
-    try {
-        console.log('Iniciando carregamento das pesquisas...');
-        showLoading();
-        
-        // URL CORRETA - use o domínio do seu site Wix
-        const wixSiteUrl = 'https://www.riseofcastles.net/pesquisa'; // Substitua pelo seu URL real
-        const apiUrl = currentUserId 
-            ? `${wixSiteUrl}/_functions/progresso?userId=${currentUserId}&t=${Date.now()}`
-            : `${wixSiteUrl}/_functions/progresso?t=${Date.now()}`;
-        
-        console.log('URL da API:', apiUrl);
-        
-        const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            mode: 'cors'
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Dados recebidos:', data);
-        
-        if (data && Array.isArray(data.pesquisas)) {
-            allResearches = data.pesquisas.map(research => ({
-                ...research,
-                subPesquisas: (research.subPesquisas || []).map(sub => ({
-                    ...sub,
-                    nivelAtual: sub.nivelAtual || 0,
-                    nivelMax: sub.nivelMax || (sub.custos ? sub.custos.length : 1)
-                }))
-            }));
-            
-            populateFilters();
-            displayResearches(allResearches);
-            updateStats();
-        } else {
-            throw new Error('Formato de dados inválido');
-        }
-        
-    } catch (error) {
-        console.error('Erro ao carregar pesquisas:', error);
-        showError(`Erro ao carregar: ${error.message}`);
-        
-        // Fallback para dados mockados
-        try {
-            const mockResponse = await fetch('pesquisas-mock.json');
-            if (mockResponse.ok) {
-                const mockData = await mockResponse.json();
-                if (mockData && Array.isArray(mockData.pesquisas)) {
-                    displayResearches(mockData.pesquisas);
-                    showError('Dados offline (usando cache)');
+        // Função para carregar pesquisas (atualizada)
+        async function loadResearches() {
+            try {
+                showLoading();
+                const apiUrl = `${WIX_API_BASE}/progresso${currentUserId ? `?userId=${currentUserId}` : ''}`;
+                
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include' // Importante para cookies de sessão
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                
+                if (data && Array.isArray(data.pesquisas)) {
+                    allResearches = data.pesquisas.map(research => ({
+                        ...research,
+                        subPesquisas: (research.subPesquisas || []).map(sub => ({
+                            ...sub,
+                            nivelAtual: sub.nivelAtual || 0,
+                            nivelMax: sub.nivelMax || (sub.custos ? sub.custos.length : 1)
+                        }))
+                    }));
+                    
+                    populateFilters();
+                    displayResearches(allResearches);
+                    updateStats();
+                } else {
+                    throw new Error('Formato de dados inválido');
                 }
+                
+            } catch (error) {
+                console.error('Erro ao carregar pesquisas:', error);
+                showError(`Erro ao carregar: ${error.message}`);
+                // Tenta carregar dados mockados como fallback
+                loadFallbackData();
             }
-        } catch (mockError) {
-            console.error('Erro no fallback:', mockError);
         }
-    }
-}
+
+        // Função de fallback
+        async function loadFallbackData() {
+            try {
+                const response = await fetch('pesquisas-mock.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && Array.isArray(data.pesquisas)) {
+                        displayResearches(data.pesquisas);
+                        showError('Dados offline (usando cache)');
+                    }
+                }
+            } catch (mockError) {
+                console.error('Erro no fallback:', mockError);
+            }
+        }
+
+        // Função para abrir detalhes da pesquisa (atualizada para Wix)
+        function openResearchDetails(researchId) {
+            if (window.parent && window.parent.postMessage) {
+                window.parent.postMessage({
+                    type: 'NAVIGATE_TO_RESEARCH',
+                    researchId: researchId
+                }, 'https://www.riseofcastles.net');
+            } else {
+                // Fallback para desenvolvimento local
+                window.location.href = `pesquisa.html?researchId=${researchId}`;
+            }
+        }
+
         // Função para mostrar loading
         function showLoading() {
             document.getElementById('researchGrid').innerHTML = '<div class="loading">Carregando pesquisas...</div>';
