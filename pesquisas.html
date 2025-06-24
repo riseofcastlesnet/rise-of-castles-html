@@ -428,61 +428,80 @@
 
         // Função para carregar pesquisas
         async function loadResearches() {
+    try {
+        console.log('Iniciando carregamento das pesquisas...');
+        showLoading();
+        
+        // Construir URL da API - adicione um timestamp para evitar cache
+        const apiUrl = currentUserId 
+            ? `https://www.riseofcastles.net/_functions/progresso?userId=${currentUserId}&t=${Date.now()}`
+            : `https://www.riseofcastles.net/_functions/progresso?t=${Date.now()}`;
+        
+        console.log('URL da API:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            mode: 'cors' // Adicione explicitamente o modo CORS
+        });
+        
+        console.log('Status da resposta:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Dados recebidos:', data);
+        
+        // Verifique se os dados são válidos mesmo sem progresso
+        if (data && Array.isArray(data.pesquisas)) {
+            allResearches = data.pesquisas;
+            console.log('Número de pesquisas carregadas:', allResearches.length);
+            
+            // Inicialize os níveis como 0 se não existirem
+            allResearches = allResearches.map(research => ({
+                ...research,
+                subPesquisas: (research.subPesquisas || []).map(sub => ({
+                    ...sub,
+                    nivelAtual: sub.nivelAtual || 0,
+                    nivelMax: sub.nivelMax || (sub.custos ? sub.custos.length : 1)
+                }))
+            }));
+            
+            populateFilters();
+            displayResearches(allResearches);
+            updateStats();
+        } else {
+            console.error('Dados inválidos recebidos:', data);
+            showError('Formato de dados inválido recebido do servidor.');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar pesquisas:', error);
+        showError(`Erro ao carregar as pesquisas: ${error.message}`);
+        
+        // Adicione um fallback para dados mockados em caso de erro
+        if (allResearches.length === 0) {
+            console.log('Tentando carregar dados mockados...');
             try {
-                console.log('Iniciando carregamento das pesquisas...');
-                showLoading();
-                
-                // Construir URL da API
-                const apiUrl = currentUserId 
-                    ? `https://www.riseofcastles.net/_functions/progresso?userId=${currentUserId}`
-                    : 'https://www.riseofcastles.net/_functions/progresso';
-                
-                console.log('URL da API:', apiUrl);
-                
-                const response = await fetch(apiUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                const mockResponse = await fetch('pesquisas-mock.json');
+                if (mockResponse.ok) {
+                    const mockData = await mockResponse.json();
+                    if (mockData && Array.isArray(mockData.pesquisas)) {
+                        allResearches = mockData.pesquisas;
+                        displayResearches(allResearches);
                     }
-                });
-                
-                console.log('Status da resposta:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
-                const data = await response.json();
-                console.log('Dados recebidos:', data);
-                
-                if (data && data.pesquisas && Array.isArray(data.pesquisas)) {
-                    allResearches = data.pesquisas;
-                    console.log('Número de pesquisas carregadas:', allResearches.length);
-                    
-                    // Garantir que todas as pesquisas tenham subPesquisas com níveis inicializados
-                    allResearches = allResearches.map(research => ({
-                        ...research,
-                        subPesquisas: research.subPesquisas ? research.subPesquisas.map(sub => ({
-                            ...sub,
-                            nivelAtual: sub.nivelAtual || 0,
-                            nivelMax: sub.nivelMax || (sub.custos ? sub.custos.length : 1)
-                        })) : []
-                    }));
-                    
-                    populateFilters();
-                    displayResearches(allResearches);
-                    updateStats();
-                } else {
-                    console.error('Dados inválidos recebidos:', data);
-                    showError('Formato de dados inválido recebido do servidor.');
-                }
-                
-            } catch (error) {
-                console.error('Erro ao carregar pesquisas:', error);
-                showError(`Erro ao carregar as pesquisas: ${error.message}`);
+            } catch (mockError) {
+                console.error('Erro ao carregar mock:', mockError);
             }
         }
+    }
+}
 
         // Função para mostrar loading
         function showLoading() {
@@ -510,63 +529,53 @@
 
         // Função para calcular progresso de uma pesquisa
         function calculateResearchProgress(research) {
-            let totalMaxLevels = 0;
-            let currentTotalLevels = 0;
-            let totalMedalsUsed = 0;
-            let totalMedalsNeeded = 0;
-            let currentCombatPower = 0;
-            let maxCombatPower = 0;
+    // Inicialize valores padrão
+    let totalMaxLevels = 0;
+    let currentTotalLevels = 0;
+    let totalMedalsUsed = 0;
+    let totalMedalsNeeded = 0;
+    let currentCombatPower = 0;
+    let maxCombatPower = 0;
 
-            if (!research.subPesquisas || !Array.isArray(research.subPesquisas)) {
-                return {
-                    progressPercentage: 0,
-                    totalMedalsUsed: 0,
-                    totalMedalsNeeded: 0,
-                    medalsRemaining: 0,
-                    currentCombatPower: 0,
-                    maxCombatPower: 0,
-                    remainingCombatPower: 0
-                };
+    // Verifique se existem subpesquisas
+    const subPesquisas = research.subPesquisas || [];
+    
+    subPesquisas.forEach(sub => {
+        const nivelMax = sub.nivelMax || (sub.custos ? sub.custos.length : 1);
+        const nivelAtual = sub.nivelAtual || 0; // Garante 0 se não existir
+        
+        totalMaxLevels += nivelMax;
+        currentTotalLevels += nivelAtual;
+
+        // Calcular medalhas e poder de combate
+        const custos = sub.custos || [];
+        for (let i = 1; i <= nivelAtual; i++) {
+            const custo = custos.find(c => c.nivel === i);
+            if (custo) {
+                totalMedalsUsed += custo.custoMedalhas || 0;
+                currentCombatPower += custo.combatPower || 0;
             }
-
-            research.subPesquisas.forEach(sub => {
-                const nivelMax = sub.nivelMax || (sub.custos ? sub.custos.length : 1);
-                const nivelAtual = sub.nivelAtual || 0;
-                
-                totalMaxLevels += nivelMax;
-                currentTotalLevels += nivelAtual;
-
-                // Calcular medalhas usadas até o nível atual
-                if (sub.custos && Array.isArray(sub.custos)) {
-                    for (let i = 1; i <= nivelAtual; i++) {
-                        const custo = sub.custos.find(c => c.nivel === i);
-                        if (custo) {
-                            totalMedalsUsed += custo.custoMedalhas || 0;
-                            currentCombatPower += custo.combatPower || 0;
-                        }
-                    }
-
-                    // Calcular total de medalhas e poder de combate máximo
-                    sub.custos.forEach(custo => {
-                        totalMedalsNeeded += custo.custoMedalhas || 0;
-                        maxCombatPower += custo.combatPower || 0;
-                    });
-                }
-            });
-
-            const progressPercentage = totalMaxLevels > 0 ? (currentTotalLevels / totalMaxLevels) * 100 : 0;
-
-            return {
-                progressPercentage,
-                totalMedalsUsed,
-                totalMedalsNeeded,
-                medalsRemaining: totalMedalsNeeded - totalMedalsUsed,
-                currentCombatPower,
-                maxCombatPower,
-                remainingCombatPower: maxCombatPower - currentCombatPower
-            };
         }
 
+        // Calcular totais máximos
+        custos.forEach(custo => {
+            totalMedalsNeeded += custo.custoMedalhas || 0;
+            maxCombatPower += custo.combatPower || 0;
+        });
+    });
+
+    const progressPercentage = totalMaxLevels > 0 ? (currentTotalLevels / totalMaxLevels) * 100 : 0;
+
+    return {
+        progressPercentage,
+        totalMedalsUsed,
+        totalMedalsNeeded,
+        medalsRemaining: totalMedalsNeeded - totalMedalsUsed,
+        currentCombatPower,
+        maxCombatPower,
+        remainingCombatPower: maxCombatPower - currentCombatPower
+    };
+}
         // Função para exibir pesquisas
         function displayResearches(researches) {
             const grid = document.getElementById('researchGrid');
