@@ -413,15 +413,16 @@
             try {
                 const response = await fetch(`https://www.riseofcastles.net/_functions/progresso${currentUserId ? `?userId=${currentUserId}` : ''}`);
                 const data = await response.json();
-                
-                if (data.pesquisas) {
+                //filtro
+                /*if (data.pesquisas) {
                     allResearches = data.pesquisas;
                     displayResearches(allResearches);
                     allResearches = data.pesquisas;
                     populateFilters();
                     displayResearches(allResearches);
                     updateStats();
-                }
+                }*/
+                displayResearches(allResearches); 
             } catch (error) {
                 console.error('Erro ao carregar pesquisas:', error);
                 document.getElementById('researchGrid').innerHTML = '<div class="no-results">Erro ao carregar as pesquisas. Tente novamente.</div>';
