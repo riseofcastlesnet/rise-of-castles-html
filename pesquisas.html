@@ -416,6 +416,8 @@
                 
                 if (data.pesquisas) {
                     allResearches = data.pesquisas;
+                    displayResearches(allResearches);
+                    allResearches = data.pesquisas;
                     populateFilters();
                     displayResearches(allResearches);
                     updateStats();
