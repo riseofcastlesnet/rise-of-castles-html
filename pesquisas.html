@@ -427,15 +427,16 @@
         });
 
         // Função para carregar pesquisas
-        async function loadResearches() {
+async function loadResearches() {
     try {
         console.log('Iniciando carregamento das pesquisas...');
         showLoading();
         
-        // Construir URL da API - adicione um timestamp para evitar cache
+        // URL CORRETA - use o domínio do seu site Wix
+        const wixSiteUrl = 'https://www.riseofcastles.net/pesquisa'; // Substitua pelo seu URL real
         const apiUrl = currentUserId 
-            ? `https://www.riseofcastles.net/_functions/progresso?userId=${currentUserId}&t=${Date.now()}`
-            : `https://www.riseofcastles.net/_functions/progresso?t=${Date.now()}`;
+            ? `${wixSiteUrl}/_functions/progresso?userId=${currentUserId}&t=${Date.now()}`
+            : `${wixSiteUrl}/_functions/progresso?t=${Date.now()}`;
         
         console.log('URL da API:', apiUrl);
         
@@ -445,10 +446,8 @@
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            mode: 'cors' // Adicione explicitamente o modo CORS
+            mode: 'cors'
         });
-        
-        console.log('Status da resposta:', response.status);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -457,13 +456,8 @@
         const data = await response.json();
         console.log('Dados recebidos:', data);
         
-        // Verifique se os dados são válidos mesmo sem progresso
         if (data && Array.isArray(data.pesquisas)) {
-            allResearches = data.pesquisas;
-            console.log('Número de pesquisas carregadas:', allResearches.length);
-            
-            // Inicialize os níveis como 0 se não existirem
-            allResearches = allResearches.map(research => ({
+            allResearches = data.pesquisas.map(research => ({
                 ...research,
                 subPesquisas: (research.subPesquisas || []).map(sub => ({
                     ...sub,
@@ -476,33 +470,28 @@
             displayResearches(allResearches);
             updateStats();
         } else {
-            console.error('Dados inválidos recebidos:', data);
-            showError('Formato de dados inválido recebido do servidor.');
+            throw new Error('Formato de dados inválido');
         }
         
     } catch (error) {
         console.error('Erro ao carregar pesquisas:', error);
-        showError(`Erro ao carregar as pesquisas: ${error.message}`);
+        showError(`Erro ao carregar: ${error.message}`);
         
-        // Adicione um fallback para dados mockados em caso de erro
-        if (allResearches.length === 0) {
-            console.log('Tentando carregar dados mockados...');
-            try {
-                const mockResponse = await fetch('pesquisas-mock.json');
-                if (mockResponse.ok) {
-                    const mockData = await mockResponse.json();
-                    if (mockData && Array.isArray(mockData.pesquisas)) {
-                        allResearches = mockData.pesquisas;
-                        displayResearches(allResearches);
-                    }
+        // Fallback para dados mockados
+        try {
+            const mockResponse = await fetch('pesquisas-mock.json');
+            if (mockResponse.ok) {
+                const mockData = await mockResponse.json();
+                if (mockData && Array.isArray(mockData.pesquisas)) {
+                    displayResearches(mockData.pesquisas);
+                    showError('Dados offline (usando cache)');
                 }
-            } catch (mockError) {
-                console.error('Erro ao carregar mock:', mockError);
             }
+        } catch (mockError) {
+            console.error('Erro no fallback:', mockError);
         }
     }
 }
-
         // Função para mostrar loading
         function showLoading() {
             document.getElementById('researchGrid').innerHTML = '<div class="loading">Carregando pesquisas...</div>';
